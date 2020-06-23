@@ -1,12 +1,13 @@
 use sp_core::{Pair, Public, sr25519};
 use node_template_runtime::{
 	AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
-	SudoConfig, SystemConfig, WASM_BINARY, Signature
+	SudoConfig, SystemConfig, WASM_BINARY, Signature, CouncilConfig, ElectionsConfig, DOLLARS
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_finality_grandpa::AuthorityId as GrandpaId;
 use sp_runtime::traits::{Verify, IdentifyAccount};
 use sc_service::ChainType;
+pub use node_primitives::{Balance};
 
 // Note this is the URL for the telemetry server
 //const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
@@ -98,7 +99,7 @@ pub fn local_testnet_config() -> ChainSpec {
 		None,
 	)
 }
-
+const STASH: Balance = 100 * DOLLARS;
 fn testnet_genesis(initial_authorities: Vec<(AuraId, GrandpaId)>,
 	root_key: AccountId,
 	endowed_accounts: Vec<AccountId>,
@@ -119,6 +120,14 @@ fn testnet_genesis(initial_authorities: Vec<(AuraId, GrandpaId)>,
 		}),
 		sudo: Some(SudoConfig {
 			key: root_key,
+		}),
+		pallet_collective_Instance1: Some(CouncilConfig::default()),
+		pallet_elections_phragmen: Some(ElectionsConfig {
+			members: endowed_accounts.iter()
+						.take((endowed_accounts.len() + 1) / 2)
+						.cloned()
+						.map(|member| (member, STASH))
+						.collect(),
 		}),
 	}
 }
