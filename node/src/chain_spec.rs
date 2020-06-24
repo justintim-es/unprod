@@ -1,7 +1,7 @@
 use sp_core::{Pair, Public, sr25519};
 use node_template_runtime::{
 	AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
-	SudoConfig, SystemConfig, WASM_BINARY, Signature, CouncilConfig, ElectionsConfig, DOLLARS, SessionConfig, opaque::SessionKeys, StakingConfig, StakerStatus
+	SudoConfig, SystemConfig, WASM_BINARY, Signature, CouncilConfig, ElectionsConfig, DOLLARS, SessionConfig, opaque::SessionKeys, StakingConfig, StakerStatus, TemplateConfig
 };
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use sp_finality_grandpa::AuthorityId as GrandpaId;
@@ -154,5 +154,8 @@ fn testnet_genesis(initial_authorities: Vec<(AccountId, AuraId, GrandpaId)>,
 			slash_reward_fraction: Perbill::from_percent(10),
 			.. Default::default()
 		}),
+		template: Some(TemplateConfig {
+			vaschal: vec![root_key]
+		})
 	}
 }

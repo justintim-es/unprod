@@ -37,7 +37,7 @@ decl_storage! {
 		// Here we are declaring a StorageValue, `Something` as a Option<u32>
 		// `get(fn something)` is the default getter which returns either the stored `u32` or `None` if nothing stored
 		Something get(fn something): Option<u32>;
-		Validators get(fn validators): Vec<T::AccountId>;
+		Validators get(fn validators) config(vaschal): Vec<T::AccountId>;
 	}
 }
 
