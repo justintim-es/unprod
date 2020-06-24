@@ -190,6 +190,38 @@ git = 'https://github.com/paritytech/substrate.git'
 tag = 'v2.0.0-rc3'
 version = '2.0.0-rc3'
 
+[dependencies.pallet-staking] 
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'v2.0.0-rc3'
+version = '2.0.0-rc3'
+
+[dependencies.sp-staking]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'v2.0.0-rc3'
+version = '2.0.0-rc3'
+
+[dependencies.pallet-staking-reward-curve]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'v2.0.0-rc3'
+version = '2.0.0-rc3'
+
+[dependencies.pallet-session]
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'v2.0.0-rc3'
+version = '2.0.0-rc3'
+
+[dependencies.pallet-babe] 
+default-features = false
+git = 'https://github.com/paritytech/substrate.git'
+tag = 'v2.0.0-rc3'
+version = '2.0.0-rc3'
+
+
+
 [package]
 authors = ['Substrate DevHub <https://github.com/substrate-developer-hub>']
 edition = '2018'
@@ -234,4 +266,8 @@ std = [
     'node-primitives/std',
     'pallet-treasury/std',
     'sp-arithmetic/std',
+    'pallet-staking/std',
+    'sp-staking/std',   
+    'pallet-session/std',
+    'pallet-babe/std',
 ]

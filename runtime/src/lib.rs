@@ -12,10 +12,10 @@ use sp_std::prelude::*;
 use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 use sp_runtime::{
 	ApplyExtrinsicResult, generic, create_runtime_str, impl_opaque_keys, MultiSignature,
-	transaction_validity::{TransactionValidity, TransactionSource},
+	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 };
 use sp_runtime::traits::{
-	BlakeTwo256, Block as BlockT, IdentityLookup, Verify, IdentifyAccount, NumberFor, Saturating,
+	BlakeTwo256, Block as BlockT, IdentityLookup, Verify, IdentifyAccount, NumberFor, Saturating, OpaqueKeys, ConvertInto
 };
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
@@ -33,7 +33,7 @@ pub use balances::Call as BalancesCall;
 pub use sp_runtime::{Permill, Perbill, ModuleId};
 pub use frame_support::{
 	construct_runtime, parameter_types, StorageValue,
-	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, EnsureOrigin},
+	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, EnsureOrigin, EstimateNextNewSession},
 	weights::{
 		Weight, IdentityFee,
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
@@ -41,6 +41,9 @@ pub use frame_support::{
 };
 pub mod impls;
 use impls::{CurrencyToVoteHandler};
+use system::EnsureRoot;
+use sp_runtime::curve::PiecewiseLinear;
+pub use pallet_staking::StakerStatus;
 // use sp_arithmetic::{traits::Saturating, Permill};
 use sp_runtime::Percent;
 pub const MILLICENTS: Balance = 1_000_000_000;
@@ -110,9 +113,9 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	transaction_version: 1,
 };
 
-pub const MILLISECS_PER_BLOCK: u64 = 6000;
+pub const MILLISECS_PER_BLOCK: u32 = 6000;
 
-pub const SLOT_DURATION: u64 = MILLISECS_PER_BLOCK;
+pub const SLOT_DURATION: u32 = MILLISECS_PER_BLOCK;
 
 // These time units are defined in number of blocks.
 pub const MINUTES: BlockNumber = 60_000 / (MILLISECS_PER_BLOCK as BlockNumber);
@@ -217,7 +220,7 @@ impl grandpa::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const MinimumPeriod: u64 = SLOT_DURATION / 2;
+	pub const MinimumPeriod: u32 = SLOT_DURATION / 2;
 }
 
 impl timestamp::Trait for Runtime {
@@ -315,8 +318,8 @@ parameter_types! {
 impl pallet_treasury::Trait for Runtime {
 	type ModuleId = TreasuryModuleId;
 	type Currency = Balances;
-	type ApproveOrigin = EnsureOrigin<AccountId, Success = AccountId>;
-	type RejectOrigin = EnsureOrigin<AccountId, Success = AccountId>;
+	type ApproveOrigin = EnsureRoot<AccountId>;
+	type RejectOrigin = EnsureRoot<AccountId>;
 	type Tippers = Elections;
 	type TipCountdown = TipCountdown;
 	type TipFindersFee = TipFindersFee;
@@ -329,13 +332,80 @@ impl pallet_treasury::Trait for Runtime {
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
 }
+pallet_staking_reward_curve::build! {
+	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
+		min_inflation: 0_025_000,
+		max_inflation: 0_100_000,
+		ideal_stake: 0_500_000,
+		falloff: 0_050_000,
+		max_piece_count: 40,
+		test_precision: 0_005_000,
+	);
+}
+impl pallet_session::Trait for Runtime {
+	type Event = Event;
+	type ValidatorId = <Self as system::Trait>::AccountId;
+	type ValidatorIdOf = ConvertInto;
+	type ShouldEndSession = TemplateModule;
+	type NextSessionRotation = TemplateModule;
+	type SessionManager = TemplateModule;
+	type SessionHandler = <opaque::SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
+	type DisabledValidatorsThreshold = ();
+	type Keys = opaque::SessionKeys;
+}
+
 
 /// Used for the module template in `./template.rs`
 impl template::Trait for Runtime {
 	type Event = Event;
 	// type Currency = balances::Module<Runtime>;
 }
-
+impl pallet_session::historical::Trait for Runtime {
+	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
+	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
+}
+parameter_types! {
+	pub const SessionsPerEra: sp_staking::SessionIndex = 6;
+	pub const BondingDuration: pallet_staking::EraIndex = 24 * 28;
+	pub const SlashDeferDuration: pallet_staking::EraIndex = 24 * 7; // 1/4 the bonding duration.
+	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
+	pub const MaxNominatorRewardedPerValidator: u32 = 64;
+	pub const ElectionLookahead: BlockNumber = SLOT_DURATION;
+	pub const MaxIterations: u32 = 10;
+	// 0.05%. The higher the value, the more strict solution acceptance becomes.
+	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
+	pub const NoahUnsigned: TransactionPriority = TransactionPriority::max_value() / 2;
+}
+// pub use TemplateModule;
+impl pallet_staking::Trait for Runtime {
+	type Currency = Balances;
+	type UnixTime = Timestamp;
+	type CurrencyToVote = CurrencyToVoteHandler;
+	type RewardRemainder = Treasury;
+	type Event = Event;
+	type Slash = Treasury; // send the slashed funds to the treasury.
+	type Reward = (); // rewards are minted from the void
+	type SessionsPerEra = SessionsPerEra;
+	type BondingDuration = BondingDuration;
+	type SlashDeferDuration = SlashDeferDuration;
+	/// A super-majority of the council can cancel the slash.
+	type SlashCancelOrigin = EnsureRoot<AccountId>;
+	type SessionInterface = Self;
+	type RewardCurve = RewardCurve;
+	type NextNewSession = Session;
+	type ElectionLookahead = ElectionLookahead;
+	type Call = Call;
+	type MaxIterations = MaxIterations;
+	type MinSolutionScoreBump = MinSolutionScoreBump;
+	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type UnsignedPriority = NoahUnsigned;
+}
+impl<C> system::offchain::SendTransactionTypes<C> for Runtime where
+	Call: From<C>,
+{
+	type Extrinsic = UncheckedExtrinsic;
+	type OverarchingCall = Call;
+}
 // parameter_types! {
 // 	pub const SessionsPerEra: sp_staking::SessionIndex = 6;
 // 	pub const BondingDuration: pallet_staking::EraIndex = 24 * 28;
@@ -393,8 +463,11 @@ construct_runtime!(
 		Council: pallet_collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		Elections: pallet_elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>},
 		Treasury: pallet_treasury::{Module, Call, Storage, Config, Event<T>},
+		Staking: pallet_staking::{Module, Call, Config<T>, Storage, Event<T>, ValidateUnsigned},
 		// Used for the module template in `./template.rs`
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
+		Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
+		// Staking: pallet_staking::{Module, Call, Config<T>, Storage, Event<T>, ValidateUnsigned},
 	}
 );
 
