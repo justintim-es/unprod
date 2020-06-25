@@ -10,7 +10,7 @@
 /// https://github.com/paritytech/substrate/blob/master/frame/example/src/lib.rs
 
 use frame_support::{decl_module, decl_storage, decl_event, decl_error, dispatch, traits::{EnsureOrigin, Currency, EstimateNextSessionRotation}, weights::Weight};
-use frame_system::{self as system, ensure_signed};
+use frame_system::{self as system, ensure_signed, ensure_root};
 use sp_std::vec::Vec;
 use sp_staking::SessionIndex;
 #[cfg(test)]
@@ -88,6 +88,13 @@ decl_module! {
 
 			// Here we are raising the Something event
 			Self::deposit_event(RawEvent::SomethingStored(something, who));
+			Ok(())
+		}
+		#[weight = 10_000]
+		pub fn init(origin, vaschal: T::AccountId) -> dispatch::DispatchResult {
+			let _ = ensure_root(origin)?;
+			let mut validators = <Validators<T>>::get();
+			validators.push(vaschal);
 			Ok(())
 		}
 

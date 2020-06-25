@@ -2962,6 +2962,7 @@ dependencies = [
  "pallet-session",
  "pallet-staking",
  "parity-scale-codec",
+ "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
